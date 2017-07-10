@@ -5,20 +5,20 @@ Funnel is a Go library that provides unification of identical operations (e.g. A
 ## Installation
 
 ```
-go get github.com/?????????/funnel
+go get github.com/intuit/funnel
 ```
 
 ## Usage ##
 
 ```go
-import "github.com/?????????/funnel"
+import "github.com/intuit/funnel"
 ```
 
 Funnel package is designed for scenarios where multiple goroutines are trying to execute an identical operation at the same time. It will take care of deduplication, execute the operation only once and return the results to all of them.
 A simple example:
 ```go
 import (
-        "github.com/?????????/funnel"
+        "github.com/intuit/funnel"
         ...
 )
 
@@ -64,7 +64,7 @@ In addition, the results of the operation can be cached, to prevent any identica
 A simple example:
 ```go
 import (
-        "github.com/?????????/funnel"
+        "github.com/intuit/funnel"
         ...
 )
 func main() {
