@@ -9,6 +9,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+	
+	"github.com/mohae/deepcopy"
 )
 
 // opResult holds the result from executing of operation
@@ -173,10 +175,22 @@ func (f *Funnel) deleteOperation(operationId string) {
 	delete(f.opInProcess, operationId)
 }
 
-// Execute gets an operation ID and a function execution. when an identical operation doesn't exists, it executes
-// the function in a separate goroutine and waits for the result. Otherwise, when there is an identical operation in process, just waits for the result.
+// Execute receives an identifier of the operation and a callback function to execute.
+// The first request to funnel with this identifier will result in the callback function being executed in a new goroutine.
+// All other requests (with the same identifier) will wait for the result of the first execution.
+// IMPORTANT: The returned object is shared between all the requesting callers.
+// Use ExecuteAndCopyResult to return a dedicated (copied) object.
 func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
 	op := f.getOperationInProcess(operationId, opExeFunc)
 	res, err = op.wait(f.config.timeout) // Waiting for completion of operation
 	return
+}
+
+// IMPORTANT: Only exported field values can be copied over.
+func (f *Funnel) ExecuteAndCopyResult(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
+	opRes, err := f.Execute(operationId, opExeFunc)
+	if err == nil {
+		res = deepcopy.Copy(opRes)
+	}
+	return res, err
 }
