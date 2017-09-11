@@ -1,9 +1,9 @@
 package funnel
 
 // Funnel is a Go library that provides unification of identical operations (e.g. API requests).
-// In the case of multiple goroutines which trying to execute an identical operation at the same time, Funnel will take care execute the
+// In the case of multiple goroutines trying to execute an identical operation at the same time, Funnel will execute the
 // operation only once and return the result to all the goroutines attempting to execute it.
-// In addition, the results of the operation can be cached, to prevent any identical operations being performed for a set period of time.
+// In addition, the results of the operation can be cached to prevent any identical operations being performed for a set period of time.
 
 import (
 	"errors"
