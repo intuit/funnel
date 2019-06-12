@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mohae/deepcopy"
+	"common/concurrency"
 )
 
 //const error
@@ -43,7 +44,7 @@ type operationInProcess struct {
 	opResult
 
 	// true when this operation has been deleted from the funnel
-	deleted bool
+	deleted concurrency.AtomBool
 }
 
 // A Config structure is used to configure the Funnel
@@ -141,7 +142,7 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 	// Executing the operation
 	go func(opInProc *operationInProcess) {
 		// closeOperation must be performed within defer function to ensure the closure of the channel.
-		defer f.closeOperation(opInProc.operationId)
+		defer f.closeOperation(op)
 		opInProc.res, opInProc.err = opExeFunc()
 	}(op)
 
@@ -149,13 +150,12 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 }
 
 // Closes the operation by updates the operation's result and closure of done channel.
-func (f *Funnel) closeOperation(operationId string) {
+func (f *Funnel) closeOperation(op  *operationInProcess) {
 	f.Lock()
 	defer f.Unlock()
 
-	op, found := f.opInProcess[operationId]
-	if !found {
-		//the operation completed after a timeout which has already deleted the the operation from the funnel.
+	//Check if the operation completed after a timeout which would result in the operation being deleted from the funnelhas already deleted the the operation from the funnel.
+	if op.deleted.Get(){
 		return
 	}
 
@@ -177,13 +177,17 @@ func (f *Funnel) closeOperation(operationId string) {
 // Once deleted, we do not hold the operation's result anymore, therefore any further request for the
 // same operation will require re-execution of it.
 func (f *Funnel) deleteOperation(operation *operationInProcess) {
+	if operation.deleted.Get() {
+		return
+	}
+
 	f.Lock()
 	defer f.Unlock()
 
 	//each timeout will call deleteOperation.  Only the first timeout should carry out deletion since a stalled app may delete a recreated operation with the same id.
-	if !operation.deleted {
+	if !operation.deleted.Get() {
 		delete(f.opInProcess, operation.operationId)
-		operation.deleted = true
+		operation.deleted.Set(true)
 	}
 }
 

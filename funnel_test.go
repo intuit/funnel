@@ -166,8 +166,12 @@ func TestWithTimeout(t *testing.T) {
 	}
 }
 
-func TestWithStalledOperation(t *testing.T) {
-	fnl := New(WithTimeout(time.Millisecond * 50))
+/*
+The following tests the ability of the funnel to create a new operation while an operation of the same id has timed out and its execution function is still running
+An unexpired cacheTTL on a timedout operation should also not prohibit creating the new operation
+ */
+func TestWithTimedoutReruns(t *testing.T) {
+	fnl := New(WithTimeout(time.Millisecond * 50), WithCacheTtl(time.Millisecond * 100))
 
 	var numOfGoREndWithTimeout uint64 = 0
 
@@ -177,13 +181,16 @@ func TestWithStalledOperation(t *testing.T) {
 
 	for op := 0; op < numOfOperations; op++ {
 		var wg sync.WaitGroup
-		wg.Add(numOfGoroutines)
+		wg.Add(numOfGoroutines) //Only when numOfGoroutines operations time out we run the next batch of numOfGoroutines operations.  Each such batch is expected to run in a newly created operation request
+
 		for i := 0; i < numOfGoroutines; i++ {
 			go func(numOfGoroutine int, id string) {
 				defer wg.Done()
+
 				res, err := fnl.Execute(id, func() (interface{}, error) {
 					numOfStartedOperations++
-					time.Sleep(time.Hour * 1)
+
+					time.Sleep(time.Millisecond * 100 )
 					return id + "ended successfully", errors.New("no error")
 				})
 
@@ -196,7 +203,6 @@ func TestWithStalledOperation(t *testing.T) {
 		}
 		wg.Wait()
 	}
-
 
 	numOfGoREndWithTimeoutFinal := atomic.LoadUint64(&numOfGoREndWithTimeout)
 	if int(numOfGoREndWithTimeoutFinal) != numOfOperations*numOfGoroutines {
