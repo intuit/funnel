@@ -216,3 +216,39 @@ func TestWithTimedoutReruns(t *testing.T) {
 	}
 }
 
+/*
+	All operation execution requests on the same operation instance should timeout at the same time.  The expiry time is determined by the timeout parameter and the time of the first execution request.
+ */
+func TestOperationAbsoluteTimeout(t *testing.T) {
+	funnelTimeout := time.Duration(500 * time.Millisecond)
+	operationSleepTime := time.Duration(550 * time.Millisecond)
+	numOfOperationRequests :=10
+	requestDelay:=time.Duration(30 * time.Millisecond)
+	operationId := "TestUnifiedTimeout"
+
+	fnl := New(WithTimeout(funnelTimeout))
+
+	var wg sync.WaitGroup
+	wg.Add(numOfOperationRequests)
+
+	start:=time.Now()
+	for i:=0; i < numOfOperationRequests; i++ {
+		go func() {
+			defer wg.Done()
+			fnl.Execute(operationId, func() (interface{}, error) {
+				time.Sleep(operationSleepTime)
+				return operationId + "ended successfully", errors.New("no error")
+			})
+		}()
+		time.Sleep(requestDelay)
+	}
+
+	wg.Wait()
+
+	elapsedTimeAllRequests :=time.Since(start)
+	expectedOperationTimeoutWithGrace:= funnelTimeout + time.Duration(100*time.Millisecond)
+
+	if elapsedTimeAllRequests > expectedOperationTimeoutWithGrace {
+		t.Error("Expected all operation request to timeout at the same time, funnelTimeout", funnelTimeout, " Elapsed time for all operations", elapsedTimeAllRequests)
+	}
+}

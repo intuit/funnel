@@ -45,6 +45,9 @@ type operationInProcess struct {
 
 	// true when this operation has been deleted from the funnel
 	deleted concurrency.AtomBool
+
+	// Time at which this operation started executing
+	startTime time.Time
 }
 
 // A Config structure is used to configure the Funnel
@@ -111,13 +114,17 @@ func New(option ...Option) *Funnel {
 
 // Waiting for completion of the operation and then returns the operation's result or error in case of timeout.
 func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err error) {
+
+	operationElapsedTime:=time.Since(op.startTime)
+	operationTimeoutRemaining:=timeout - operationElapsedTime
+
 	select {
 	case <-op.done:
 		if op.panicErr != nil { // If the operation ended with panic, this pending request also ends the same way.
 			panic(op.panicErr)
 		}
 		return op.res, op.err
-	case <-time.After(timeout):
+	case <-time.After(operationTimeoutRemaining):
 		return nil, timeoutError
 	}
 }
@@ -136,6 +143,7 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 	op = &operationInProcess{
 		operationId: operationId,
 		done:        make(chan empty),
+		startTime: time.Now(),
 	}
 	f.opInProcess[operationId] = op
 
