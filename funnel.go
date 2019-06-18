@@ -150,7 +150,7 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 	// Executing the operation
 	go func(opInProc *operationInProcess) {
 		// closeOperation must be performed within defer function to ensure the closure of the channel.
-		defer f.closeOperation(op)
+		defer f.closeOperation(opInProc)
 		opInProc.res, opInProc.err = opExeFunc()
 	}(op)
 
