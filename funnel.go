@@ -216,7 +216,7 @@ func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, erro
 // IMPORTANT: Only exported field values can be copied over.
 func (f *Funnel) ExecuteAndCopyResult(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
 	opRes, err := f.Execute(operationId, opExeFunc)
-	if err == nil {
+	if opRes != nil {
 		res = deepcopy.Copy(opRes)
 	}
 	return res, err
