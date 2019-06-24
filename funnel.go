@@ -9,9 +9,13 @@ import (
 	"errors"
 	"sync"
 	"time"
-	
+
 	"github.com/mohae/deepcopy"
+	"common/concurrency"
 )
+
+//const error
+var timeoutError = errors.New("Timeout expired while waiting for operation execution to complete")
 
 // opResult holds the result from executing of operation
 type opResult struct {
@@ -38,6 +42,12 @@ type operationInProcess struct {
 
 	// The result from executing of operation, will be available after the channel will be closed.
 	opResult
+
+	// true when this operation has been deleted from the funnel
+	deleted concurrency.AtomBool
+
+	// Time at which this operation started executing
+	startTime time.Time
 }
 
 // A Config structure is used to configure the Funnel
@@ -104,14 +114,18 @@ func New(option ...Option) *Funnel {
 
 // Waiting for completion of the operation and then returns the operation's result or error in case of timeout.
 func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err error) {
+
+	operationElapsedTime:=time.Since(op.startTime)
+	operationTimeoutRemaining:=timeout - operationElapsedTime
+
 	select {
 	case <-op.done:
 		if op.panicErr != nil { // If the operation ended with panic, this pending request also ends the same way.
 			panic(op.panicErr)
 		}
 		return op.res, op.err
-	case <-time.After(timeout):
-		return nil, errors.New("Timeout expired when waiting to operation in process")
+	case <-time.After(operationTimeoutRemaining):
+		return nil, timeoutError
 	}
 }
 
@@ -129,13 +143,14 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 	op = &operationInProcess{
 		operationId: operationId,
 		done:        make(chan empty),
+		startTime: time.Now(),
 	}
 	f.opInProcess[operationId] = op
 
 	// Executing the operation
 	go func(opInProc *operationInProcess) {
 		// closeOperation must be performed within defer function to ensure the closure of the channel.
-		defer f.closeOperation(opInProc.operationId)
+		defer f.closeOperation(opInProc)
 		opInProc.res, opInProc.err = opExeFunc()
 	}(op)
 
@@ -143,13 +158,13 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 }
 
 // Closes the operation by updates the operation's result and closure of done channel.
-func (f *Funnel) closeOperation(operationId string) {
+func (f *Funnel) closeOperation(op  *operationInProcess) {
 	f.Lock()
 	defer f.Unlock()
 
-	op, found := f.opInProcess[operationId]
-	if !found {
-		panic("unexpected behavior, operation id not found")
+	//Check if the operation completed after a timeout which would result in the operation being deleted from the funnelhas already deleted the the operation from the funnel.
+	if op.deleted.Get(){
+		return
 	}
 
 	if rr := recover(); rr != nil {
@@ -159,7 +174,7 @@ func (f *Funnel) closeOperation(operationId string) {
 	// Deletion of operationInProcess from the map will occur only when the cache time-to-live will be expired.
 	go func() {
 		time.Sleep(f.config.cacheTtl)
-		f.deleteOperation(operationId)
+		f.deleteOperation(op)
 	}()
 
 	// Releases all the goroutines which are waiting for the operation result.
@@ -169,10 +184,19 @@ func (f *Funnel) closeOperation(operationId string) {
 // Delete the operation from the map.
 // Once deleted, we do not hold the operation's result anymore, therefore any further request for the
 // same operation will require re-execution of it.
-func (f *Funnel) deleteOperation(operationId string) {
+func (f *Funnel) deleteOperation(operation *operationInProcess) {
+	if operation.deleted.Get() {
+		return
+	}
+
 	f.Lock()
 	defer f.Unlock()
-	delete(f.opInProcess, operationId)
+
+	//each timeout will call deleteOperation.  Only the first timeout should carry out deletion since a stalled app may delete a recreated operation with the same id.
+	if !operation.deleted.Get() {
+		delete(f.opInProcess, operation.operationId)
+		operation.deleted.Set(true)
+	}
 }
 
 // Execute receives an identifier of the operation and a callback function to execute.
@@ -183,6 +207,9 @@ func (f *Funnel) deleteOperation(operationId string) {
 func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
 	op := f.getOperationInProcess(operationId, opExeFunc)
 	res, err = op.wait(f.config.timeout) // Waiting for completion of operation
+	if err == timeoutError {
+		f.deleteOperation(op)
+	}
 	return
 }
 
