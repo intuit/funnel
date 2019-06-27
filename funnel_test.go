@@ -106,9 +106,10 @@ func TestEndsWithPanic(t *testing.T) {
 							t.Error("unexpected panic message")
 						}
 						atomic.AddUint64(&numOfGoREndWithPanic, 1)
+						wg.Done()
 					}
 				}()
-				defer wg.Done()
+
 				if numOfGoroutine%2 == 1 {
 					time.Sleep(time.Millisecond * 500)
 				}
@@ -174,10 +175,11 @@ func TestWithTimedoutReruns(t *testing.T) {
 	fnl := New(WithTimeout(time.Millisecond * 50), WithCacheTtl(time.Millisecond * 100))
 
 	var numOfGoREndWithTimeout uint64 = 0
+	var numOfStartedOperations uint64 = 0
 
 	numOfOperations := 50
 	numOfGoroutines := 50
-	numOfStartedOperations := 0
+
 
 	for op := 0; op < numOfOperations; op++ {
 		var wg sync.WaitGroup
@@ -188,7 +190,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 				defer wg.Done()
 
 				res, err := fnl.Execute(id, func() (interface{}, error) {
-					numOfStartedOperations++
+					atomic.AddUint64(&numOfStartedOperations, 1)
 
 					time.Sleep(time.Millisecond * 100 )
 					return id + "ended successfully", errors.New("no error")
@@ -210,7 +212,8 @@ func TestWithTimedoutReruns(t *testing.T) {
 
 	}
 
-	if numOfStartedOperations != numOfOperations{
+	numOfStartedOperationsFinal := atomic.LoadUint64(&numOfStartedOperations)
+	if  int(numOfStartedOperationsFinal) != numOfOperations{
 		t.Error("Number of operation execution starts is not as expected, expected ", numOfOperations, ", got ", numOfStartedOperations)
 
 	}

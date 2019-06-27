@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/mohae/deepcopy"
-	"common/concurrency"
+	"github.com/tevino/abool"
 )
 
 //const error
@@ -44,7 +44,7 @@ type operationInProcess struct {
 	opResult
 
 	// true when this operation has been deleted from the funnel
-	deleted concurrency.AtomBool
+	deleted abool.AtomicBool
 
 	// Time at which this operation started executing
 	startTime time.Time
@@ -163,7 +163,7 @@ func (f *Funnel) closeOperation(op  *operationInProcess) {
 	defer f.Unlock()
 
 	//Check if the operation completed after a timeout which would result in the operation being deleted from the funnelhas already deleted the the operation from the funnel.
-	if op.deleted.Get(){
+	if op.deleted.IsSet(){
 		return
 	}
 
@@ -185,7 +185,7 @@ func (f *Funnel) closeOperation(op  *operationInProcess) {
 // Once deleted, we do not hold the operation's result anymore, therefore any further request for the
 // same operation will require re-execution of it.
 func (f *Funnel) deleteOperation(operation *operationInProcess) {
-	if operation.deleted.Get() {
+	if operation.deleted.IsSet() {
 		return
 	}
 
@@ -193,9 +193,9 @@ func (f *Funnel) deleteOperation(operation *operationInProcess) {
 	defer f.Unlock()
 
 	//each timeout will call deleteOperation.  Only the first timeout should carry out deletion since a stalled app may delete a recreated operation with the same id.
-	if !operation.deleted.Get() {
+	if !operation.deleted.IsSet() {
 		delete(f.opInProcess, operation.operationId)
-		operation.deleted.Set(true)
+		operation.deleted.SetTo(true)
 	}
 }
 
