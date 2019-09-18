@@ -1,3 +1,9 @@
+[![Build Status](https://travis-ci.org/mrooz/funnel.svg?branch=master)](https://travis-ci.org/mrooz/funnel)
+[![codecov](https://codecov.io/gh/intuit/katlas/branch/master/graph/badge.svg)](https://codecov.io/gh/mrooz/funnel)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mrooz/funnel)](https://goreportcard.com/report/github.com/mrooz/funnel)
+
+
+
 # Funnel #
 
 Funnel is a Go library that provides unification of identical operations (e.g. API requests).
