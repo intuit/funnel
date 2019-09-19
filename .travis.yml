@@ -6,4 +6,4 @@ go:
 
 
 script:
-  - go test -race -coverprofile=coverage.txt -covermode=atomic
+  - go test -coverpkg=./... -coverprofile=coverage.txt
