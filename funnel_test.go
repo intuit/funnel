@@ -106,10 +106,9 @@ func TestEndsWithPanic(t *testing.T) {
 							t.Error("unexpected panic message")
 						}
 						atomic.AddUint64(&numOfGoREndWithPanic, 1)
-						wg.Done()
 					}
 				}()
-
+				defer wg.Done()
 				if numOfGoroutine%2 == 1 {
 					time.Sleep(time.Millisecond * 500)
 				}
@@ -121,6 +120,7 @@ func TestEndsWithPanic(t *testing.T) {
 				t.Error("Should not reach this line because panic should occur")
 
 			}(i, opId)
+
 		}
 	}
 
