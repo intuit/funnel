@@ -1,6 +1,6 @@
-[![Build Status](https://travis-ci.org/intuit/funnel.svg?branch=master)](https://travis-ci.org/intuit/funnel)
-[![codecov](https://codecov.io/gh/intuit/gitdetect/branch/master/graph/badge.svg)](https://codecov.io/gh/intuit/funnel)
-[![Go Report Card](https://goreportcard.com/badge/github.com/intuit/funnel)](https://goreportcard.com/report/github.com/intuit/funnel)
+[![Build Status](https://travis-ci.org/mrooz/funnel.svg?branch=master)](https://travis-ci.org/intuit/funnel)
+[![codecov](https://codecov.io/gh/mrooz/funnel/branch/master/graph/badge.svg)](https://codecov.io/gh/mrooz/funnel)
+[![Go Report Card](https://goreportcard.com/badge/github.com/mrooz/funnel)](https://goreportcard.com/report/github.com/mrooz/funnel)
 
 
 
