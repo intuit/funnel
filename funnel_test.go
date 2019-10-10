@@ -106,7 +106,7 @@ func TestEndsWithPanic(t *testing.T) {
 							t.Error("unexpected panic message")
 						}
 						atomic.AddUint64(&numOfGoREndWithPanic, 1)
-						defer wg.Done()
+						wg.Done()
 					}
 				}()
 
