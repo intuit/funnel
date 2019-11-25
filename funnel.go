@@ -194,3 +194,8 @@ func (f *Funnel) ExecuteAndCopyResult(operationId string, opExeFunc func() (inte
 	}
 	return res, err
 }
+
+func (f *Funnel) IsOpInProgress(operationId string) bool {
+	_, found := f.opInProcess[operationId]
+	return found
+}
