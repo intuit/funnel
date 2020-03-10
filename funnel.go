@@ -44,7 +44,7 @@ type operationInProcess struct {
 	opResult
 
 	// true when this operation has been deleted from the funnel
-	deleted abool.AtomicBool
+	deleted *abool.AtomicBool
 
 	// Time at which this operation started executing
 	startTime time.Time
@@ -115,8 +115,8 @@ func New(option ...Option) *Funnel {
 // Waiting for completion of the operation and then returns the operation's result or error in case of timeout.
 func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err error) {
 
-	operationElapsedTime:=time.Since(op.startTime)
-	operationTimeoutRemaining:=timeout - operationElapsedTime
+	operationElapsedTime := time.Since(op.startTime)
+	operationTimeoutRemaining := timeout - operationElapsedTime
 
 	select {
 	case <-op.done:
@@ -143,7 +143,8 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 	op = &operationInProcess{
 		operationId: operationId,
 		done:        make(chan empty),
-		startTime: time.Now(),
+		startTime:   time.Now(),
+		deleted:     abool.New(),
 	}
 	f.opInProcess[operationId] = op
 
@@ -158,12 +159,12 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 }
 
 // Closes the operation by updates the operation's result and closure of done channel.
-func (f *Funnel) closeOperation(op  *operationInProcess) {
+func (f *Funnel) closeOperation(op *operationInProcess) {
 	f.Lock()
 	defer f.Unlock()
 
-	//Check if the operation completed after a timeout which would result in the operation being deleted from the funnelhas already deleted the the operation from the funnel.
-	if op.deleted.IsSet(){
+	//Check if the operation completed after a timeout which would result in the operation being deleted from the funnel.
+	if op.deleted.IsSet() {
 		return
 	}
 
