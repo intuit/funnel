@@ -106,9 +106,10 @@ func TestEndsWithPanic(t *testing.T) {
 							t.Error("unexpected panic message")
 						}
 						atomic.AddUint64(&numOfGoREndWithPanic, 1)
+						wg.Done()
 					}
 				}()
-				defer wg.Done()
+
 				if numOfGoroutine%2 == 1 {
 					time.Sleep(time.Millisecond * 500)
 				}
@@ -150,7 +151,7 @@ func TestWithTimeout(t *testing.T) {
 					return id + "ended successfully", errors.New("no error")
 				})
 
-				if res == nil && err.Error() == "Timeout expired when waiting to operation in process" {
+				if res == nil && err == timeoutError {
 					atomic.AddUint64(&numOfGoREndWithTimeout, 1)
 				}
 
@@ -163,5 +164,94 @@ func TestWithTimeout(t *testing.T) {
 	numOfGoREndWithTimeoutFinal := atomic.LoadUint64(&numOfGoREndWithTimeout)
 	if int(numOfGoREndWithTimeoutFinal) != numOfOperations*numOfGoroutines {
 		t.Error("Number of operations that ended with timeout expired is not as expected, expected ", numOfOperations*numOfGoroutines, ", got ", numOfGoREndWithTimeoutFinal)
+	}
+}
+
+/*
+The following tests the ability of the funnel to create a new operation while an operation of the same id has timed out and its execution function is still running
+An unexpired cacheTTL on a timedout operation should also not prohibit creating the new operation
+ */
+func TestWithTimedoutReruns(t *testing.T) {
+	fnl := New(WithTimeout(time.Millisecond * 50), WithCacheTtl(time.Millisecond * 100))
+
+	var numOfGoREndWithTimeout uint64 = 0
+	var numOfStartedOperations uint64 = 0
+
+	numOfOperations := 50
+	numOfGoroutines := 50
+
+
+	for op := 0; op < numOfOperations; op++ {
+		var wg sync.WaitGroup
+		wg.Add(numOfGoroutines) //Only when numOfGoroutines operations time out we run the next batch of numOfGoroutines operations.  Each such batch is expected to run in a newly created operation request
+
+		for i := 0; i < numOfGoroutines; i++ {
+			go func(numOfGoroutine int, id string) {
+				defer wg.Done()
+
+				res, err := fnl.Execute(id, func() (interface{}, error) {
+					atomic.AddUint64(&numOfStartedOperations, 1)
+
+					time.Sleep(time.Millisecond * 100 )
+					return id + "ended successfully", errors.New("no error")
+				})
+
+				if res == nil && err == timeoutError {
+					atomic.AddUint64(&numOfGoREndWithTimeout, 1)
+				}
+
+			}(i, "StaticOperationId")
+
+		}
+		wg.Wait()
+	}
+
+	numOfGoREndWithTimeoutFinal := atomic.LoadUint64(&numOfGoREndWithTimeout)
+	if int(numOfGoREndWithTimeoutFinal) != numOfOperations*numOfGoroutines {
+		t.Error("Number of operations that ended with timeout expired is not as expected, expected ", numOfOperations*numOfGoroutines, ", got ", numOfGoREndWithTimeoutFinal)
+
+	}
+
+	numOfStartedOperationsFinal := atomic.LoadUint64(&numOfStartedOperations)
+	if  int(numOfStartedOperationsFinal) != numOfOperations{
+		t.Error("Number of operation execution starts is not as expected, expected ", numOfOperations, ", got ", numOfStartedOperations)
+
+	}
+}
+
+/*
+	All operation execution requests on the same operation instance should timeout at the same time.  The expiry time is determined by the timeout parameter and the time of the first execution request.
+ */
+func TestOperationAbsoluteTimeout(t *testing.T) {
+	funnelTimeout := time.Duration(500 * time.Millisecond)
+	operationSleepTime := time.Duration(550 * time.Millisecond)
+	numOfOperationRequests :=10
+	requestDelay:=time.Duration(30 * time.Millisecond)
+	operationId := "TestUnifiedTimeout"
+
+	fnl := New(WithTimeout(funnelTimeout))
+
+	var wg sync.WaitGroup
+	wg.Add(numOfOperationRequests)
+
+	start:=time.Now()
+	for i:=0; i < numOfOperationRequests; i++ {
+		go func() {
+			defer wg.Done()
+			fnl.Execute(operationId, func() (interface{}, error) {
+				time.Sleep(operationSleepTime)
+				return operationId + "ended successfully", errors.New("no error")
+			})
+		}()
+		time.Sleep(requestDelay)
+	}
+
+	wg.Wait()
+
+	elapsedTimeAllRequests :=time.Since(start)
+	expectedOperationTimeoutWithGrace:= funnelTimeout + time.Duration(100*time.Millisecond)
+
+	if elapsedTimeAllRequests > expectedOperationTimeoutWithGrace {
+		t.Error("Expected all operation request to timeout at the same time, funnelTimeout", funnelTimeout, " Elapsed time for all operations", elapsedTimeAllRequests)
 	}
 }
