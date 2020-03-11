@@ -165,3 +165,20 @@ func TestWithTimeout(t *testing.T) {
 		t.Error("Number of operations that ended with timeout expired is not as expected, expected ", numOfOperations*numOfGoroutines, ", got ", numOfGoREndWithTimeoutFinal)
 	}
 }
+
+func TestOpInProgress(t *testing.T) {
+	fnl := New()
+
+	opId := "opId"
+	go func() {
+		fnl.Execute(opId, func() (i interface{}, err error) {
+			time.Sleep(time.Second * 2)
+			return nil, nil
+		})
+	}()
+
+	time.Sleep(time.Millisecond * 500)
+	if !fnl.IsOpInProgress(opId) {
+		t.Error("Expected op to be in progress")
+	}
+}
