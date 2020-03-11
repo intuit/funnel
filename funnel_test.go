@@ -170,16 +170,15 @@ func TestWithTimeout(t *testing.T) {
 /*
 The following tests the ability of the funnel to create a new operation while an operation of the same id has timed out and its execution function is still running
 An unexpired cacheTTL on a timedout operation should also not prohibit creating the new operation
- */
+*/
 func TestWithTimedoutReruns(t *testing.T) {
-	fnl := New(WithTimeout(time.Millisecond * 50), WithCacheTtl(time.Millisecond * 100))
+	fnl := New(WithTimeout(time.Millisecond*50), WithCacheTtl(time.Millisecond*100))
 
 	var numOfGoREndWithTimeout uint64 = 0
 	var numOfStartedOperations uint64 = 0
 
 	numOfOperations := 50
 	numOfGoroutines := 50
-
 
 	for op := 0; op < numOfOperations; op++ {
 		var wg sync.WaitGroup
@@ -192,7 +191,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 				res, err := fnl.Execute(id, func() (interface{}, error) {
 					atomic.AddUint64(&numOfStartedOperations, 1)
 
-					time.Sleep(time.Millisecond * 100 )
+					time.Sleep(time.Millisecond * 100)
 					return id + "ended successfully", errors.New("no error")
 				})
 
@@ -213,7 +212,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 	}
 
 	numOfStartedOperationsFinal := atomic.LoadUint64(&numOfStartedOperations)
-	if  int(numOfStartedOperationsFinal) != numOfOperations{
+	if int(numOfStartedOperationsFinal) != numOfOperations {
 		t.Error("Number of operation execution starts is not as expected, expected ", numOfOperations, ", got ", numOfStartedOperations)
 
 	}
@@ -221,12 +220,12 @@ func TestWithTimedoutReruns(t *testing.T) {
 
 /*
 	All operation execution requests on the same operation instance should timeout at the same time.  The expiry time is determined by the timeout parameter and the time of the first execution request.
- */
+*/
 func TestOperationAbsoluteTimeout(t *testing.T) {
 	funnelTimeout := time.Duration(500 * time.Millisecond)
 	operationSleepTime := time.Duration(550 * time.Millisecond)
-	numOfOperationRequests :=10
-	requestDelay:=time.Duration(30 * time.Millisecond)
+	numOfOperationRequests := 10
+	requestDelay := time.Duration(30 * time.Millisecond)
 	operationId := "TestUnifiedTimeout"
 
 	fnl := New(WithTimeout(funnelTimeout))
@@ -234,8 +233,8 @@ func TestOperationAbsoluteTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numOfOperationRequests)
 
-	start:=time.Now()
-	for i:=0; i < numOfOperationRequests; i++ {
+	start := time.Now()
+	for i := 0; i < numOfOperationRequests; i++ {
 		go func() {
 			defer wg.Done()
 			fnl.Execute(operationId, func() (interface{}, error) {
@@ -248,8 +247,8 @@ func TestOperationAbsoluteTimeout(t *testing.T) {
 
 	wg.Wait()
 
-	elapsedTimeAllRequests :=time.Since(start)
-	expectedOperationTimeoutWithGrace:= funnelTimeout + time.Duration(100*time.Millisecond)
+	elapsedTimeAllRequests := time.Since(start)
+	expectedOperationTimeoutWithGrace := funnelTimeout + time.Duration(100*time.Millisecond)
 
 	if elapsedTimeAllRequests > expectedOperationTimeoutWithGrace {
 		t.Error("Expected all operation request to timeout at the same time, funnelTimeout", funnelTimeout, " Elapsed time for all operations", elapsedTimeAllRequests)
@@ -270,5 +269,5 @@ func TestOpInProgress(t *testing.T) {
 	time.Sleep(time.Millisecond * 500)
 	if !fnl.IsOpInProgress(opId) {
 		t.Error("Expected op to be in progress")
-  }
+	}
 }
