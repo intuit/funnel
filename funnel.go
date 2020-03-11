@@ -196,6 +196,9 @@ func (f *Funnel) ExecuteAndCopyResult(operationId string, opExeFunc func() (inte
 }
 
 func (f *Funnel) IsOpInProgress(operationId string) bool {
+	f.Lock()
+	defer f.Unlock()
+
 	_, found := f.opInProcess[operationId]
 	return found
 }
