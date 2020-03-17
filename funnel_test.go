@@ -2,6 +2,7 @@ package funnel
 
 import (
 	"errors"
+	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -170,16 +171,15 @@ func TestWithTimeout(t *testing.T) {
 /*
 The following tests the ability of the funnel to create a new operation while an operation of the same id has timed out and its execution function is still running
 An unexpired cacheTTL on a timedout operation should also not prohibit creating the new operation
- */
+*/
 func TestWithTimedoutReruns(t *testing.T) {
-	fnl := New(WithTimeout(time.Millisecond * 50), WithCacheTtl(time.Millisecond * 100))
+	fnl := New(WithTimeout(time.Millisecond*50), WithCacheTtl(time.Millisecond*100))
 
 	var numOfGoREndWithTimeout uint64 = 0
 	var numOfStartedOperations uint64 = 0
 
 	numOfOperations := 50
 	numOfGoroutines := 50
-
 
 	for op := 0; op < numOfOperations; op++ {
 		var wg sync.WaitGroup
@@ -192,7 +192,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 				res, err := fnl.Execute(id, func() (interface{}, error) {
 					atomic.AddUint64(&numOfStartedOperations, 1)
 
-					time.Sleep(time.Millisecond * 100 )
+					time.Sleep(time.Millisecond * 100)
 					return id + "ended successfully", errors.New("no error")
 				})
 
@@ -213,7 +213,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 	}
 
 	numOfStartedOperationsFinal := atomic.LoadUint64(&numOfStartedOperations)
-	if  int(numOfStartedOperationsFinal) != numOfOperations{
+	if int(numOfStartedOperationsFinal) != numOfOperations {
 		t.Error("Number of operation execution starts is not as expected, expected ", numOfOperations, ", got ", numOfStartedOperations)
 
 	}
@@ -221,12 +221,12 @@ func TestWithTimedoutReruns(t *testing.T) {
 
 /*
 	All operation execution requests on the same operation instance should timeout at the same time.  The expiry time is determined by the timeout parameter and the time of the first execution request.
- */
+*/
 func TestOperationAbsoluteTimeout(t *testing.T) {
 	funnelTimeout := time.Duration(500 * time.Millisecond)
 	operationSleepTime := time.Duration(550 * time.Millisecond)
-	numOfOperationRequests :=10
-	requestDelay:=time.Duration(30 * time.Millisecond)
+	numOfOperationRequests := 10
+	requestDelay := time.Duration(30 * time.Millisecond)
 	operationId := "TestUnifiedTimeout"
 
 	fnl := New(WithTimeout(funnelTimeout))
@@ -234,8 +234,8 @@ func TestOperationAbsoluteTimeout(t *testing.T) {
 	var wg sync.WaitGroup
 	wg.Add(numOfOperationRequests)
 
-	start:=time.Now()
-	for i:=0; i < numOfOperationRequests; i++ {
+	start := time.Now()
+	for i := 0; i < numOfOperationRequests; i++ {
 		go func() {
 			defer wg.Done()
 			fnl.Execute(operationId, func() (interface{}, error) {
@@ -248,10 +248,56 @@ func TestOperationAbsoluteTimeout(t *testing.T) {
 
 	wg.Wait()
 
-	elapsedTimeAllRequests :=time.Since(start)
-	expectedOperationTimeoutWithGrace:= funnelTimeout + time.Duration(100*time.Millisecond)
+	elapsedTimeAllRequests := time.Since(start)
+	expectedOperationTimeoutWithGrace := funnelTimeout + time.Duration(100*time.Millisecond)
 
 	if elapsedTimeAllRequests > expectedOperationTimeoutWithGrace {
 		t.Error("Expected all operation request to timeout at the same time, funnelTimeout", funnelTimeout, " Elapsed time for all operations", elapsedTimeAllRequests)
 	}
+}
+
+var getRandomInt = func() (interface{}, error) {
+	time.Sleep(time.Millisecond * 50)
+	res := rand.Int()
+	return &res, nil
+}
+
+/*
+Test ExecuteAndCopyResult function. Validate that ExecuteAndCopyResult returns copied object and not a shared object between the requesting callers.
+*/
+func TestExecuteAndCopyResult(t *testing.T) {
+	fnl := New()
+	var wg sync.WaitGroup
+
+	var num1, num2 *int
+
+	wg.Add(2)
+
+	// preform getRandomInt twice, with same operation id - both goroutines are expected to get same result.
+	// each goroutine stores the returned result, the results would be compared later
+	go func() {
+		defer wg.Done()
+		res, _ := fnl.ExecuteAndCopyResult("opId", getRandomInt)
+		num1 = res.(*int)
+	}()
+
+	go func() {
+		defer wg.Done()
+		res, _ := fnl.ExecuteAndCopyResult("opId", getRandomInt)
+		num2 = res.(*int)
+	}()
+
+	// wait until both goroutines finish
+	wg.Wait()
+
+	// we are expecting ExecuteAndCopyResult to preform deep copy, the returned results for same operation
+	// should have same values but different addresses
+	if *num1 != *num2 {
+		t.Error("Objects' values are expected to be the same. values received:", *num1, ",", *num2)
+	}
+
+	if &num1 == &num2 {
+		t.Error("Objects' addresses are expected to be different. addresses received:", &num1, ",", &num2)
+	}
+
 }
