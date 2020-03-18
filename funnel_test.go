@@ -2,6 +2,7 @@ package funnel
 
 import (
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"strconv"
 	"sync"
@@ -309,12 +310,8 @@ func TestExecuteAndCopyResult(t *testing.T) {
 
 	// we are expecting ExecuteAndCopyResult to preform deep copy, the returned results for same operation
 	// should have same values but different addresses
-	if *num1 != *num2 {
-		t.Error("Objects' values are expected to be the same. values received:", *num1, ",", *num2)
-	}
+	assert.Equal(t, *num1, *num2, "Objects' values are expected to be the same.")
 
-	if &num1 == &num2 {
-		t.Error("Objects' addresses are expected to be different. addresses received:", &num1, ",", &num2)
-	}
+	assert.False(t, num1 == num2, "Objects' addresses are expected to be different. addresses received:", num1, ",", num2)
 
 }
