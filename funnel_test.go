@@ -2,6 +2,8 @@ package funnel
 
 import (
 	"errors"
+	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -270,4 +272,46 @@ func TestOpInProgress(t *testing.T) {
 	if !fnl.IsOpInProgress(opId) {
 		t.Error("Expected op to be in progress")
 	}
+}
+
+var getRandomInt = func() (interface{}, error) {
+	time.Sleep(time.Millisecond * 50)
+	res := rand.Int()
+	return &res, nil
+}
+
+/*
+Test ExecuteAndCopyResult function. Validate that ExecuteAndCopyResult returns copied object and not a shared object between the requesting callers.
+*/
+func TestExecuteAndCopyResult(t *testing.T) {
+	fnl := New()
+	var wg sync.WaitGroup
+
+	var num1, num2 *int
+
+	wg.Add(2)
+
+	// preform getRandomInt twice, with same operation id - both goroutines are expected to get same result.
+	// each goroutine stores the returned result, the results would be compared later
+	go func() {
+		defer wg.Done()
+		res, _ := fnl.ExecuteAndCopyResult("opId", getRandomInt)
+		num1 = res.(*int)
+	}()
+
+	go func() {
+		defer wg.Done()
+		res, _ := fnl.ExecuteAndCopyResult("opId", getRandomInt)
+		num2 = res.(*int)
+	}()
+
+	// wait until both goroutines finish
+	wg.Wait()
+
+	// we are expecting ExecuteAndCopyResult to preform deep copy, the returned results for same operation
+	// should have same values but different addresses
+	assert.Equal(t, *num1, *num2, "Objects' values are expected to be the same.")
+
+	assert.False(t, num1 == num2, "Objects' addresses are expected to be different. addresses received:", num1, ",", num2)
+
 }
