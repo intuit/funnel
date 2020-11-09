@@ -230,3 +230,12 @@ func (f *Funnel) IsOpInProgress(operationId string) bool {
 	_, found := f.opInProcess[operationId]
 	return found
 }
+
+// Invalidate cached operation result, so next call will have to proceed with real call
+func (f *Funnel) InvalidateCache(operationId string) {
+	f.Lock()
+	if op, found := f.opInProcess[operationId]; found {
+		f.Unlock()
+		f.deleteOperation(op)
+	}
+}

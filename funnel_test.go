@@ -2,13 +2,14 @@ package funnel
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBasic(t *testing.T) {
@@ -314,4 +315,23 @@ func TestExecuteAndCopyResult(t *testing.T) {
 
 	assert.False(t, num1 == num2, "Objects' addresses are expected to be different. addresses received:", num1, ",", num2)
 
+}
+
+func TestCacheInvalidate(t *testing.T) {
+	fnl := New(WithCacheTtl(time.Second * 5))
+
+	var ops int = 0
+	executions := 20
+	opId := "operation"
+	for op := 0; op < executions; op++ {
+		fnl.Execute(opId, func() (interface{}, error) {
+			time.Sleep(time.Millisecond * 100)
+			ops++
+			return ops, nil
+		})
+		if op == 10 {
+			fnl.InvalidateCache(opId)
+		}
+	}
+	assert.Equal(t, 2, ops, "Number of operations is wrong")
 }
