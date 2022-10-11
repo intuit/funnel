@@ -321,8 +321,8 @@ func TestCachedValued(t *testing.T) {
 		if i%3 == 0 {
 			time.Sleep(100 * time.Millisecond)
 		}
+		wg.Add(1)
 		go func() {
-			wg.Add(1)
 			_, err := f.Execute(opId, func() (interface{}, error) {
 				return nil, nil
 			})
