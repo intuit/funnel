@@ -2,13 +2,14 @@ package funnel
 
 import (
 	"errors"
-	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestBasic(t *testing.T) {
@@ -37,9 +38,7 @@ func TestBasic(t *testing.T) {
 				if res != id+"ended successfully" || err.Error() != "no error" {
 					t.Error("The results of operations is not as expected")
 				}
-
 			}(i, opId)
-
 		}
 	}
 
@@ -76,9 +75,7 @@ func TestWithCacheTtl(t *testing.T) {
 				if res != id+"ended successfully" || err.Error() != "no error" {
 					t.Error("The results of operations is not as expected")
 				}
-
 			}(i, opId)
-
 		}
 	}
 
@@ -121,9 +118,7 @@ func TestEndsWithPanic(t *testing.T) {
 				})
 
 				t.Error("Should not reach this line because panic should occur")
-
 			}(i, opId)
-
 		}
 	}
 
@@ -156,9 +151,7 @@ func TestWithTimeout(t *testing.T) {
 				if res == nil && err == timeoutError {
 					atomic.AddUint64(&numOfGoREndWithTimeout, 1)
 				}
-
 			}(i, opId)
-
 		}
 	}
 
@@ -184,7 +177,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 
 	for op := 0; op < numOfOperations; op++ {
 		var wg sync.WaitGroup
-		wg.Add(numOfGoroutines) //Only when numOfGoroutines operations time out we run the next batch of numOfGoroutines operations.  Each such batch is expected to run in a newly created operation request
+		wg.Add(numOfGoroutines) // Only when numOfGoroutines operations time out we run the next batch of numOfGoroutines operations.  Each such batch is expected to run in a newly created operation request
 
 		for i := 0; i < numOfGoroutines; i++ {
 			go func(numOfGoroutine int, id string) {
@@ -200,9 +193,7 @@ func TestWithTimedoutReruns(t *testing.T) {
 				if res == nil && err == timeoutError {
 					atomic.AddUint64(&numOfGoREndWithTimeout, 1)
 				}
-
 			}(i, "StaticOperationId")
-
 		}
 		wg.Wait()
 	}
@@ -210,13 +201,11 @@ func TestWithTimedoutReruns(t *testing.T) {
 	numOfGoREndWithTimeoutFinal := atomic.LoadUint64(&numOfGoREndWithTimeout)
 	if int(numOfGoREndWithTimeoutFinal) != numOfOperations*numOfGoroutines {
 		t.Error("Number of operations that ended with timeout expired is not as expected, expected ", numOfOperations*numOfGoroutines, ", got ", numOfGoREndWithTimeoutFinal)
-
 	}
 
 	numOfStartedOperationsFinal := atomic.LoadUint64(&numOfStartedOperations)
 	if int(numOfStartedOperationsFinal) != numOfOperations {
 		t.Error("Number of operation execution starts is not as expected, expected ", numOfOperations, ", got ", numOfStartedOperations)
-
 	}
 }
 
@@ -313,5 +302,41 @@ func TestExecuteAndCopyResult(t *testing.T) {
 	assert.Equal(t, *num1, *num2, "Objects' values are expected to be the same.")
 
 	assert.False(t, num1 == num2, "Objects' addresses are expected to be different. addresses received:", num1, ",", num2)
+}
 
+// Test cached value
+func TestCachedValued(t *testing.T) {
+	opId := "opId"
+	f := New(WithCacheTtl(time.Hour), WithTimeout(100*time.Millisecond))
+	// cache value
+	f.Execute(opId, func() (interface{}, error) {
+		return nil, nil
+	})
+
+	numOfGoroutines := 1000
+	wg := sync.WaitGroup{}
+	failedExecute := false
+
+	for i := 0; i < numOfGoroutines; i++ {
+		if i%3 == 0 {
+			time.Sleep(100 * time.Millisecond)
+		}
+		wg.Add(1)
+		go func() {
+			_, err := f.Execute(opId, func() (interface{}, error) {
+				return nil, nil
+			})
+			if err != nil && errors.Is(err, timeoutError) {
+				failedExecute = true
+			}
+			wg.Done()
+		}()
+		// result should have been cached
+		if failedExecute {
+			t.Error("false timeout error")
+			break
+		}
+	}
+
+	wg.Wait()
 }

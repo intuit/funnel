@@ -48,6 +48,9 @@ type operationInProcess struct {
 
 	// Time at which this operation started executing
 	startTime time.Time
+
+	// Operation will be marked completed once a result is returned
+	completed *abool.AtomicBool
 }
 
 // A Config structure is used to configure the Funnel
@@ -114,7 +117,6 @@ func New(option ...Option) *Funnel {
 
 // Waiting for completion of the operation and then returns the operation's result or error in case of timeout.
 func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err error) {
-
 	operationElapsedTime := time.Since(op.startTime)
 	operationTimeoutRemaining := timeout - operationElapsedTime
 
@@ -125,6 +127,9 @@ func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err 
 		}
 		return op.res, op.err
 	case <-time.After(operationTimeoutRemaining):
+		if op.completed.IsSet() {
+			return op.res, op.err
+		}
 		return nil, timeoutError
 	}
 }
@@ -145,6 +150,7 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 		done:        make(chan empty),
 		startTime:   time.Now(),
 		deleted:     abool.New(),
+		completed:   abool.New(),
 	}
 	f.opInProcess[operationId] = op
 
@@ -153,6 +159,7 @@ func (f *Funnel) getOperationInProcess(operationId string, opExeFunc func() (int
 		// closeOperation must be performed within defer function to ensure the closure of the channel.
 		defer f.closeOperation(opInProc)
 		opInProc.res, opInProc.err = opExeFunc()
+		opInProc.completed.Set()
 	}(op)
 
 	return op
@@ -207,6 +214,7 @@ func (f *Funnel) deleteOperation(operation *operationInProcess) {
 // Use ExecuteAndCopyResult to return a dedicated (copied) object.
 func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
 	op := f.getOperationInProcess(operationId, opExeFunc)
+
 	res, err = op.wait(f.config.timeout) // Waiting for completion of operation
 	if err == timeoutError {
 		f.deleteOperation(op)
