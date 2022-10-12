@@ -214,7 +214,7 @@ func (f *Funnel) deleteOperation(operation *operationInProcess) {
 // Use ExecuteAndCopyResult to return a dedicated (copied) object.
 func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
 	op := f.getOperationInProcess(operationId, opExeFunc)
-	// If op is completed return the result
+
 	res, err = op.wait(f.config.timeout) // Waiting for completion of operation
 	if err == timeoutError {
 		f.deleteOperation(op)
