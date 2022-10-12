@@ -117,7 +117,6 @@ func New(option ...Option) *Funnel {
 
 // Waiting for completion of the operation and then returns the operation's result or error in case of timeout.
 func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err error) {
-
 	operationElapsedTime := time.Since(op.startTime)
 	operationTimeoutRemaining := timeout - operationElapsedTime
 
@@ -128,6 +127,9 @@ func (op *operationInProcess) wait(timeout time.Duration) (res interface{}, err 
 		}
 		return op.res, op.err
 	case <-time.After(operationTimeoutRemaining):
+		if op.completed.IsSet() {
+			return op.res, op.err
+		}
 		return nil, timeoutError
 	}
 }
@@ -213,9 +215,6 @@ func (f *Funnel) deleteOperation(operation *operationInProcess) {
 func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, error)) (res interface{}, err error) {
 	op := f.getOperationInProcess(operationId, opExeFunc)
 	// If op is completed return the result
-	if op.completed.IsSet() {
-		return op.res, op.err
-	}
 	res, err = op.wait(f.config.timeout) // Waiting for completion of operation
 	if err == timeoutError {
 		f.deleteOperation(op)

@@ -313,7 +313,7 @@ func TestCachedValued(t *testing.T) {
 		return nil, nil
 	})
 
-	numOfGoroutines := 100
+	numOfGoroutines := 1000
 	wg := sync.WaitGroup{}
 	failedExecute := false
 
