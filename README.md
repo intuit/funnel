@@ -94,6 +94,8 @@ func main() {
 }
 ```
 
+It's worth noting that only timeout related error responses are discarded. 5xx class responses or other errors will be cached as the response.
+
 ## Contributing
 
 1. Fork it
