@@ -61,6 +61,9 @@ type Config struct {
 
 	// the maximum time that goroutines will wait for ending of operation.
 	timeout time.Duration
+
+	// function determines if a result should be cached or not
+	shouldCache func(interface{}, error) bool
 }
 
 // The purpose of Funnel is to prevent running of identical operations in concurrently.
@@ -77,22 +80,6 @@ type Funnel struct {
 	config Config
 }
 
-type Option func(*Config)
-
-//WithCacheTtl defines the maximum time that goroutines will wait for ending of operation (the default is one minute)
-func WithTimeout(t time.Duration) Option {
-	return func(cfg *Config) {
-		cfg.timeout = t
-	}
-}
-
-//WithCacheTtl defines the time for which the result can remain cached (the default is 0 )
-func WithCacheTtl(cTtl time.Duration) Option {
-	return func(cfg *Config) {
-		cfg.cacheTtl = cTtl
-	}
-}
-
 // Return a pointer to a new Funnel. By default the timeout is one minute and
 // the cacheTtl is 0. You can pass options to change it, for example:
 //
@@ -103,6 +90,9 @@ func New(option ...Option) *Funnel {
 	cfg := Config{
 		timeout:  time.Duration(time.Minute),
 		cacheTtl: 0,
+		shouldCache: func(s interface{}, err error) bool {
+			return true
+		},
 	}
 
 	for _, opt := range option {
@@ -216,7 +206,7 @@ func (f *Funnel) Execute(operationId string, opExeFunc func() (interface{}, erro
 	op := f.getOperationInProcess(operationId, opExeFunc)
 
 	res, err = op.wait(f.config.timeout) // Waiting for completion of operation
-	if err == timeoutError {
+	if err == timeoutError || !f.config.shouldCache(res, err) {
 		f.deleteOperation(op)
 	}
 	return

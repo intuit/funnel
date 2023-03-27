@@ -86,6 +86,50 @@ func TestWithCacheTtl(t *testing.T) {
 	}
 }
 
+func TestWithShouldCachePredicate(t *testing.T) {
+	myError := errors.New("something went wrong")
+	fnl := New(WithCacheTtl(time.Hour), WithShouldCachePredicate(func(response interface{}, err error) bool {
+		if response == 1 {
+			return true
+		} else if response == 2 {
+			return false
+		} else if errors.Is(err, myError) {
+			return false
+		}
+		return true
+	}))
+
+	res, err := fnl.Execute("1", func() (interface{}, error) {
+		return 1, nil
+	})
+
+	assert.Equal(t, res, 1)
+	assert.Equal(t, err, nil)
+
+	op := fnl.opInProcess["1"]
+	assert.NotNil(t, op)
+
+	res, err = fnl.Execute("2", func() (interface{}, error) {
+		return 2, nil
+	})
+
+	assert.Equal(t, res, 2)
+	assert.Equal(t, err, nil)
+
+	op = fnl.opInProcess["2"]
+	assert.Nil(t, op)
+
+	res, err = fnl.Execute("3", func() (interface{}, error) {
+		return nil, myError
+	})
+
+	assert.Equal(t, res, nil)
+	assert.Equal(t, err, myError)
+
+	op = fnl.opInProcess["3"]
+	assert.Nil(t, op)
+}
+
 func TestEndsWithPanic(t *testing.T) {
 	fnl := New()
 
